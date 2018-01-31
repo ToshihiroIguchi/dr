@@ -12,7 +12,19 @@ library(lle)
 library(som)
 library(diffusionMap)
 
-dr <- function(formula, data, normalize = TRUE){
+dr <- function(formula, data, normalize = TRUE, unique = TRUE,
+               methods = c("pca", "kpca" ,"mds", "tsne", "lle", "som"),
+               kpca.par = list(kernel = "rbfdot", sigma = 0.1),
+               mds.par = list(k = 2),
+               tsne.par = list(dims = 2, initial_dims = 50, perplexity = 30, theta = 0.5),
+               lle.par = list(m = 2, k = 5, reg = 2, p = 0.5),
+               som.par = list(xdim = 5, ydim = 6),
+               diffmap.par = list(neigen = NULL, t = 0, maxdim = 50, delta=10^-5))
+  {
+
+  #kpca.par はsigma,degree, scale, offset,orderも指定できる。
+  #tsne.parのdimsは3以下がよい。
+
   #入力をチェック
   if(is.null(formula)){stop("formula is null.")}
   if(is.null(data)){stop("data is null.")}
@@ -20,60 +32,91 @@ dr <- function(formula, data, normalize = TRUE){
 
   #データを準備
   ret <- list() #戻り値
-  ret$formula <- formula
+  ret$parameter$formula <- formula
+  ret$parameter$normalize <- normalize
+  ret$parameter$unique <- unique
 
   #解析用データ
-  #まずここをなおす。
   data.original <- model.matrix(object = formula, data = data)[,-1] #解析用データ。[,-1]で切片を除く。
+  ret$parameter$data.head  <- data.original[1, ]
+  if(unique){data.original <- unique(data.original)} #ユニークなデータだけ抜粋。
 
+  #規格化。data.maが解析用の元データのマトリクス
   if(normalize){
     data.mean <- apply(data.original, 2, mean)
     data.sd <- apply(data.original, 2, sd)
-    data.ma <- data.original
+    #規格化。もうちょっとスマートなのがある気がする…
+    data.ma <- t(apply(data.original,1,function(x){(x - data.mean)/data.sd}))
   }else{
     data.mean <- NULL
     data.sd <- NULL
     data.ma <- data.original
   }
+  ret$parameter$data.mean <- data.mean
+  ret$parameter$data.sd <- data.sd
 
-
-
+  #変換
   data.df <- data.frame(data.ma) #データフレームに変換
   data.di <- dist(data.ma) #dist classの距離に変換
 
-  #PCA(数値のみしか使用できない。)
-  ret$pca <- prcomp(~., data = data.df,
-                    scale = normalize, center = normalize)
+  #ここから解析本体-----------------------------------------------
+
+  #PCA
+  #(数値のみしか使用できない。)
+  if(!is.na(match("pca", methods))){
+    cat("\n[Principal Components Analysis] \n")
+    ret$pca <- prcomp(~., data = data.df,
+                      scale = normalize, center = normalize)
+  }
+
+
 
   #kernel PCA
-  #kernelとkparは後で修正。
-  ret$kpca <- kpca(x = ~., data = data.df,
-               kernel = "rbfdot", kpar = list(sigma = 0.1))
+  if(!is.na(match("kpca", methods))){
+    cat("\n[Kernel Principal Components Analysis] \n")
+    #kpcaに渡すデータを編集。
+    kpca.kernel <- kpca.par$kernel
+    kpca.par$kernel <- NULL
+
+    #kpca本体
+    ret$kpca <- kpca(x = ~., data = data.df,
+                     kernel = kpca.kernel, kpar = kpca.par)
+  }
+
 
   #MDS
-  #kは後で修正。
-  ret$mds <- cmdscale(d = as.matrix(data.di), k = 1)
+  cat("\n[Classical Multidimensional Scaling]\n")
+  ret$mds <- cmdscale(d = as.matrix(data.di), k = mds.par$k)
 
   #t-SNE
   #https://blog.albert2005.co.jp/2015/12/02/tsne/
-  #注意点として、t-SNE で圧縮する次元は、 2・3 次元が推奨されています。
-  #パラメータはあとで修正
-
-  ret$tsne <- Rtsne(unique(data.df), dims = 2, initial_dims = 50, perplexity = 30, theta = 0.5)
+  #注意点として、t-SNE で圧縮する次元は、 2・3 次元が推奨されています
+  cat("\n[t-Distributed Stochastic Neighbor Embedding]\n")
+  ret$tsne <- Rtsne(data.df,
+                    dims = tsne.par$dims, initial_dims = tsne.par$initial_dims,
+                    perplexity = tsne.par$perplexity, theta = tsne.par$theta)
 
   #LLE
-  #m,kはあとで修正
-  ret$lle <- lle(data.ma, m = 2, k = 2)
+  #m,kは再考の必要あり。
+  cat("\n[Locally linear embedding]\n")
+  ret$lle <- lle(data.ma, m = lle.par$m,
+                 k = lle.par$k,
+                 reg = lle.par$reg, p = lle.par$p)
 
   #SOM
-  #normalizeの有無はオプションにしたほうがよいか？
-  #パラメータはあとで修正。
-  ret$som <- som(normalize(data.df), xdim=8, ydim=4)
+  #その他のパラメータもあったほうがいい？
+  cat("\n[Self-Organizing Map]\n")
+  ret$som <- som(data.df, xdim=som.par$xdim, ydim=som.par$ydim)
 
   #diffusion map
-  #scaleの有無
-  #その他のパラメータ
-  ret$diffmap <- diffuse(dist(scale(iris[,-5])))
+  cat("\n[Diffusion Map]\n")
+  ret$diffmap <- diffuse(data.di,
+                         neigen = diffmap.par$neigen,
+                         t = diffmap.par$t, maxdim = diffmap.par$maxdim,
+                         delta = diffmap.par$delta)
+
+
+
 
   #戻り値
   class(ret) <- "dr"
@@ -83,20 +126,5 @@ dr <- function(formula, data, normalize = TRUE){
 ret <- dr(~Sepal.Length+ Sepal.Width + Petal.Length+ Petal.Width+Species, data = iris)
 
 
-
-
-
-
-
-
-#isomap
-#isomapうまくいかない
-test <- isomap(vegdist((iris[,-5])),k = 5)
-
-## The following examples also overlay minimum spanning tree to
-## the graphics in red.
-data(BCI)
-dis <- vegdist(BCI)
-ord <- isomap(dis, k=3)
 
 
