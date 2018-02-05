@@ -23,7 +23,7 @@ Load the `dr` package and attach it.
 
 
 ### Examples
-We show a concrete example of `dr` package in iris`.
+We show a concrete example of `dr` package in `iris`.
 Like the `lm` function, it can be written in formula form like objective variable and explanatory variable.
 In the `dr` package, you can analyze it without including the object variable.
 Both numerical values and factors can be entered for object variables and explanatory variables.
