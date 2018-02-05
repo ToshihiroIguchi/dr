@@ -6,14 +6,9 @@
 #http://d.hatena.ne.jp/hoxo_m/20120313/p1
 #https://blog.albert2005.co.jp/2014/12/11/%E9%AB%98%E6%AC%A1%E5%85%83%E3%83%87%E3%83%BC%E3%82%BF%E3%81%AE%E5%8F%AF%E8%A6%96%E5%8C%96%E3%81%AE%E6%89%8B%E6%B3%95%E3%82%92swiss-roll%E3%82%92%E4%BE%8B%E3%81%AB%E8%A6%8B%E3%81%A6%E3%81%BF%E3%82%88/
 
-library(kernlab)
-library(Rtsne)
-library(lle)
-library(som)
-library(diffusionMap)
 
 dr <- function(formula, data, normalize = TRUE, unique = TRUE,
-               methods = c("pca", "kpca" ,"mds", "tsne", "lle", "som"),
+               methods = c("pca", "kpca" ,"mds", "tsne", "lle", "som", "diffmap"),
                kpca.par = list(kernel = "rbfdot", sigma = 0.1),
                mds.par = list(k = 2),
                tsne.par = list(dims = 2, initial_dims = 50, perplexity = 30, theta = 0.5),
@@ -52,13 +47,10 @@ dr <- function(formula, data, normalize = TRUE, unique = TRUE,
     y.formula  <- as.formula(paste0(as.character(formula[2]), "~+0"))
     y.data <- model.frame(y.formula, data)[u.no,1]
     ret$y <- y.data
-    formula[2] <- NULL #目的変数をさくじょ
+    formula[2] <- NULL #目的変数を削除
   }else{
     ret$y <- NULL
   }
-
-
-
 
   #説明変数の項目名を抜粋
   ret$parameter$names  <- names(data.original[1, ])
@@ -152,7 +144,6 @@ dr <- function(formula, data, normalize = TRUE, unique = TRUE,
   return(ret)
 }
 
-ret <- dr(Sepal.Length~Sepal.Length+ Sepal.Width + Petal.Length+ Petal.Width, data = iris)
 
 predict.dr <- function(result, data){
   data.original <- model.matrix(object = result$parameter$formula, data = data)[,-1]
@@ -188,7 +179,6 @@ predict.dr <- function(result, data){
   #res$som <- predict(result$som, data.df)
 }
 
-
 plot.dr <- function(result, cex = 1){
   if(!is.null(result$y)){
     if(is.factor(result$y)){
@@ -202,22 +192,67 @@ plot.dr <- function(result, cex = 1){
     plot_bg <- NULL; col_p <- NULL
   }
 
-  if(!is.null(result$pca)){
-    plot(result$pca$x[,1],result$pca$x[,2], xlab = "PC1", ylab = "PC2",
-         type = "p", pch = 21, cex = cex, bg = plot_bg)
+  chk_hit <- FALSE
+  hit_ret <- function(chk_hit){
+    if(chk_hit){
+      cat("Hit <Return> to see next plot: \n")
+      readline()
+    }
+  }
+
+  plot_dr <- function(x, y, main, xlab, ylab){
+    hit_ret(chk_hit)
     #https://www1.doshisha.ac.jp/~mjin/R/Chap_07/07.html
+    plot(x, y, main = main, xlab = xlab, ylab = ylab, type = "p", pch = 21, cex = cex, bg = plot_bg)
+
+  }
+
+  if(!is.null(result$pca)){
+    plot_dr(x = result$pca$x[,1], y = result$pca$x[,2],
+            main = "Principal Components Analysis", xlab = "PC1", ylab = "PC2")
+    chk_hit <- TRUE
   }
 
   if(!is.null(result$kpca)){
-    plot(result$kpca@pcv[,1],result$kpca@pcv[,2], xlab = "K-PC1", ylab = "K-PC2",
-         type = "p", pch = 21, cex = cex, bg = plot_bg)
-    #https://www1.doshisha.ac.jp/~mjin/R/Chap_07/07.html
+    plot_dr(x = result$kpca@pcv[,1], y = result$kpca@pcv[,2],
+            main = "Kernel Principal Components Analysis",
+            xlab = "K-PC1", ylab = "K-PC2")
+    chk_hit <- TRUE
   }
 
+  if(!is.null(result$mds)){
+    plot_dr(x = result$mds[,1], y = result$mds[,2],
+            main = "Classical Multidimensional Scaling", xlab = "Dimension 1", ylab = "Dimension 2")
+    chk_hit <- TRUE
+  }
+
+  if(!is.null(result$tsne)){
+    plot_dr(x = result$tsne$Y[,1], y = result$tsne$Y[,2],
+            main = "t-Distributed Stochastic Neighbor Embedding", xlab = " ", ylab = " ")
+    chk_hit <- TRUE
+  }
+
+  if(!is.null(result$lle)){
+    plot_dr(x = result$lle$Y[,1], y = result$lle$Y[,2],
+            main = "Locally linear embedding main function", xlab = " ", ylab = " ")
+    chk_hit <- TRUE
+  }
+
+  if(!is.null(result$som)){
+    plot_dr(x = result$som$visual$x, y = result$som$visual$y,
+            main = "Self-Organizing Map", xlab = "x", ylab = "y")
+    chk_hit <- TRUE
+  }
+
+  if(!is.null(result$diffmap)){
+    plot_dr(x = result$diffmap$X[,1], y = result$diffmap$X[,2],
+            main = "diffusion map", xlab = " ", ylab = " ")
+    chk_hit <- TRUE
+  }
 
 }
 
-plot(ret)
+
 
 
 
