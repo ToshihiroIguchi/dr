@@ -7,4 +7,4 @@ Description: Wrappers of various dimension reduction algorithms. Data after dime
 License: MIT
 Encoding: UTF-8
 LazyData: true
-Depends: kernlab, Rtsne, lle, som, diffusionMap
+Depends: kernlab, Rtsne, lle, som, diffusionMap, scatterplot3d
